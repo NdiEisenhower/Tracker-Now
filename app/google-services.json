@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "156539495300",
+    "project_id": "tracker-now-5ef61",
+    "storage_bucket": "tracker-now-5ef61.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:156539495300:android:093e25c0ebbb27263b33d1",
+        "android_client_info": {
+          "package_name": "com.eisen.trackernow"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBJbTEs6XkJhmlibAwsS3zFeBbliLxgFO4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:156539495300:android:9647c6e0784639b43b33d1",
+        "android_client_info": {
+          "package_name": "com.eisen.trackernow.debug"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBJbTEs6XkJhmlibAwsS3zFeBbliLxgFO4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
