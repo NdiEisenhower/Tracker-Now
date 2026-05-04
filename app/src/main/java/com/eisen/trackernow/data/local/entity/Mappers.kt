@@ -6,7 +6,6 @@ import com.eisen.trackernow.data.remote.dto.StatusTimelineDto
 import com.eisen.trackernow.domain.model.Address
 import com.eisen.trackernow.domain.model.Carrier
 import com.eisen.trackernow.domain.model.Shipment
-import com.eisen.trackernow.domain.model.ShipmentDetail
 import com.eisen.trackernow.domain.model.Status
 import com.eisen.trackernow.domain.model.StatusTimeline
 

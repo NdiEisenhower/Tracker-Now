@@ -24,7 +24,6 @@ class ShipmentDetailViewModel @Inject constructor(
 
     private val shipmentId: String = savedStateHandle["shipmentId"] ?: ""
 
-    // Cache for processed detail to avoid reprocessing on config changes
     private var cachedDetail: ShipmentDetail? = null
 
     init {
@@ -32,7 +31,6 @@ class ShipmentDetailViewModel @Inject constructor(
     }
 
     fun loadShipmentDetail(forceRefresh: Boolean = false) {
-        // If we have cached data and not forcing refresh, use it
         if (!forceRefresh && cachedDetail != null) {
             _shipmentDetail.value = Resource.Success(cachedDetail!!)
             return
@@ -43,7 +41,6 @@ class ShipmentDetailViewModel @Inject constructor(
             try {
                 val detail = getShipmentDetailUseCase(shipmentId)
                 if (detail != null) {
-                    // Process the detail to remove duplicates and sort timeline
                     val processedDetail = processShipmentDetail(detail)
                     cachedDetail = processedDetail
                     _shipmentDetail.value = Resource.Success(processedDetail)
@@ -60,47 +57,22 @@ class ShipmentDetailViewModel @Inject constructor(
         loadShipmentDetail(forceRefresh = true)
     }
 
-    /**
-     * Process shipment detail to:
-     * 1. Remove duplicate timeline entries
-     * 2. Sort timeline by timestamp (most recent first)
-     * 3. Ensure unique entries based on time, location, and label
-     */
-    private fun processShipmentDetail(detail: ShipmentDetail): ShipmentDetail {
-        // Create a sorted list of unique timeline entries
+    fun processShipmentDetail(detail: ShipmentDetail): ShipmentDetail {
         val seen = mutableSetOf<String>()
         val uniqueTimeline = detail.timeline
-            .sortedByDescending { it.time } // Sort by most recent first
+            .sortedByDescending { it.time }
             .filter { timelineItem ->
                 val locationKey = timelineItem.location ?: ""
                 val key = "${timelineItem.time}_${locationKey}_${timelineItem.label}"
                 if (seen.contains(key)) {
-                    false // Duplicate
+                    false
                 } else {
                     seen.add(key)
-                    true // Unique
+                    true
                 }
             }
 
-        // Return a new ShipmentDetail with the processed timeline
         return detail.copy(timeline = uniqueTimeline)
     }
 
-    /**
-     * Refresh the shipment detail from network
-     */
-    fun refresh() {
-        loadShipmentDetail(forceRefresh = true)
-    }
-}
-
-// Extension function to parse timestamp to milliseconds
-private fun String.parseTimestamp(): Long {
-    return try {
-        val format = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US)
-        format.timeZone = java.util.TimeZone.getTimeZone("UTC")
-        format.parse(this)?.time ?: 0L
-    } catch (e: Exception) {
-        0L
-    }
 }

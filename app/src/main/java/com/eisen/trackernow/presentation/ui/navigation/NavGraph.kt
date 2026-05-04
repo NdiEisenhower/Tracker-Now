@@ -2,10 +2,12 @@ package com.eisen.trackernow.presentation.ui.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -13,10 +15,11 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.navigation.navDeepLink
-import com.eisen.trackernow.presentation.ui.ThemeManager
 import com.eisen.trackernow.presentation.ui.screens.detail.ShipmentDetailScreen
 import com.eisen.trackernow.presentation.ui.screens.list.ShipmentListScreen
+import com.eisen.trackernow.presentation.util.Resource
 import com.eisen.trackernow.presentation.viewmodel.ShipmentListViewModel
+import kotlinx.coroutines.delay
 
 sealed class Screen(val route: String) {
     object ShipmentList : Screen("shipment_list")
@@ -29,9 +32,32 @@ sealed class Screen(val route: String) {
 }
 
 @Composable
-fun NavGraph(modifier: Modifier = Modifier, initialShipmentId: String? = null) {
+fun NavGraph(modifier: Modifier = Modifier, initialShipmentId: String? = null,  onDataLoaded: () -> Unit = {}) {
     val navController = rememberNavController()
     val viewModel: ShipmentListViewModel = viewModel()
+    var isDataLoaded by remember { mutableStateOf(false) }
+    val shipmentsState by viewModel.shipments.collectAsStateWithLifecycle()
+
+    LaunchedEffect(shipmentsState, isDataLoaded) {
+        when (shipmentsState) {
+            is Resource.Success -> {
+                val shipments = (shipmentsState as Resource.Success).data
+                if (shipments != null && !isDataLoaded) {
+                    delay(300)
+                    isDataLoaded = true
+                    onDataLoaded()
+                }
+            }
+            is Resource.Error -> {
+                if (!isDataLoaded) {
+                    delay(300)
+                    isDataLoaded = true
+                    onDataLoaded()
+                }
+            }
+            else -> {}
+        }
+    }
 
     LaunchedEffect(initialShipmentId) {
         initialShipmentId?.let { shipmentId ->
@@ -62,10 +88,8 @@ fun NavGraph(modifier: Modifier = Modifier, initialShipmentId: String? = null) {
             arguments = listOf(
                 navArgument("shipmentId") { type = NavType.StringType }
             )
-        ) { backStackEntry ->
-            val shipmentId = backStackEntry.arguments?.getString("shipmentId") ?: return@composable
+        ) {
             ShipmentDetailScreen(
-                shipmentId = shipmentId,
                 onBackClick = {
                     viewModel.checkForPendingUpdates()
                     navController.popBackStack()
@@ -85,7 +109,6 @@ fun NavGraph(modifier: Modifier = Modifier, initialShipmentId: String? = null) {
             )
         ) { backStackEntry ->
             val shipmentId = backStackEntry.arguments?.getString("shipmentId") ?: return@composable
-            // Navigate to detail screen
             navController.navigate(Screen.ShipmentDetail.passId(shipmentId)) {
                 popUpTo(Screen.ShipmentList.route) {
                     inclusive = false

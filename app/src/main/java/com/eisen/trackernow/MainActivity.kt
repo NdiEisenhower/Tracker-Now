@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.setContent
@@ -18,7 +19,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -42,33 +43,9 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var themeManager: ThemeManager
+    private var keepSplashScreen = false
 
-    private var notificationPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
-            // Permission granted - you can now send notifications
-            android.util.Log.d("MainActivity", "Notification permission granted")
-            // Initialize notification channels or register for push notifications
 
-        } else {
-            // Permission denied - inform user if needed
-            android.util.Log.d("MainActivity", "Notification permission denied")
-        }
-    }
-    private fun handleNotificationIntent(intent: Intent): String? {
-        return when {
-            intent.action == Intent.ACTION_VIEW -> {
-                // Handle deep link
-                intent.data?.lastPathSegment
-            }
-            intent.hasExtra(EXTRA_SHIPMENT_ID) -> {
-                // Handle normal intent
-                intent.getStringExtra(EXTRA_SHIPMENT_ID)
-            }
-            else -> null
-        }
-    }
 
     private fun getInitialShipmentId(): String? {
         return pendingShipmentId
@@ -77,7 +54,6 @@ class MainActivity : ComponentActivity() {
     companion object {
         private var pendingShipmentId: String? = null
         private const val EXTRA_SHIPMENT_ID = "shipment_id"
-        private const val EXTRA_FROM_NOTIFICATION = "from_notification"
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -86,45 +62,70 @@ class MainActivity : ComponentActivity() {
         shipmentId?.let {
             pendingShipmentId = it
         }
-        // You might want to trigger a recomposition or update a state
 
         setIntent(intent)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
+        splashScreen.setKeepOnScreenCondition { keepSplashScreen }
+
         val shipmentId = handleNotificationIntent(intent)
+        shipmentId?.let {
+            pendingShipmentId = it
+        }
         enableEdgeToEdge()
         requestNotificationPermission()
         setContent {
             CompositionLocalProvider(
                 LocalThemeManager provides themeManager
             ) {
-                TrackNowApp(  initialShipmentId = getInitialShipmentId())
+                TrackNowApp(  initialShipmentId = getInitialShipmentId()){
+                    keepSplashScreen = false
+                }
             }
+        }
+    }
+
+    private var notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            Log.d("MainActivity", "Notification permission granted")
+
+
+        } else {
+            Log.d("MainActivity", "Notification permission denied")
+        }
+    }
+    private fun handleNotificationIntent(intent: Intent): String? {
+        return when {
+            intent.action == Intent.ACTION_VIEW -> {
+                intent.data?.lastPathSegment
+            }
+            intent.hasExtra(EXTRA_SHIPMENT_ID) -> {
+                intent.getStringExtra(EXTRA_SHIPMENT_ID)
+            }
+            else -> null
         }
     }
 
     private fun requestNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            // Android 13 (API 33) and above
             when {
                 ContextCompat.checkSelfPermission(
                     this,
                     Manifest.permission.POST_NOTIFICATIONS
                 ) == PackageManager.PERMISSION_GRANTED -> {
-                    // Permission already granted
-                    android.util.Log.d("MainActivity", "Notification permission already granted")
+                     Log.d("MainActivity", "Notification permission already granted")
 
                 }
                 else -> {
-                    // Request permission
                     notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
             }
-        } else {
-            // For Android 12 and below, notification permission is granted at install time
-            android.util.Log.d("MainActivity", "Notification permission not required for Android 12 and below")
+        } else { Log.d("MainActivity", "Notification permission not required for Android 12 and below")
 
         }
     }
@@ -133,13 +134,13 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun TrackNowApp(
-    initialShipmentId: String? = null
+    initialShipmentId: String? = null,
+    onDataLoaded: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val application = context.applicationContext as Application
     val themeManager = remember { application.themeManager }
 
-    // Collect theme mode from DataStore
     val themeMode by themeManager.getThemeMode().collectAsStateWithLifecycle(initialValue = ThemeMode.SYSTEM)
 
     val darkTheme = when (themeMode) {
@@ -171,7 +172,8 @@ fun TrackNowApp(
             ) { innerPadding ->
                 NavGraph(
                     modifier = Modifier.padding(innerPadding),
-                    initialShipmentId = initialShipmentId
+                    initialShipmentId = initialShipmentId,
+                    onDataLoaded = onDataLoaded
                 )
             }
         }

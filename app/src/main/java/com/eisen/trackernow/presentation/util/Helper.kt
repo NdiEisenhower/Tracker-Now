@@ -111,23 +111,19 @@ object Helper {
     fun SafeImage(@DrawableRes id: Int, contentDescription: String?) {
         val context = LocalContext.current
         val imageBitmap = remember(id) {
-            // This works for LayerDrawable, BitmapDrawable, VectorDrawable, etc.
             ContextCompat.getDrawable(context, id)?.toBitmap()?.asImageBitmap()
         }
 
         if (imageBitmap != null) {
             Image(bitmap = imageBitmap, contentDescription = contentDescription,  modifier = Modifier.size(54.dp)  )
         } else {
-            // Fallback: Try the standard method if the custom one fails
-            // This keeps your app from crashing if the resource is a standard type
             Image(painterResource(id), contentDescription,  modifier = Modifier.size(54.dp) )
         }
     }
 
-    // In your Helper.kt or a separate file
     @Composable
     fun getStatusColor(statusCode: String): Color {
-        val modernColors = rememberModernColors() // Your theme-aware colors
+        val modernColors = rememberModernColors()
 
         return when (statusCode) {
             "DELIVERED" -> modernColors.success
@@ -139,17 +135,16 @@ object Helper {
         }
     }
 
-    // Also make getCarrierColor theme-aware
     @Composable
     fun getCarrierColor(carrierCode: String): Color {
         val modernColors = rememberModernColors()
 
         return when (carrierCode.lowercase()) {
-            "fedex" -> Color(0xFF4B0082) // Purple
-            "ups" -> Color(0xFF1A237E) // Dark Blue
-            "usps" -> Color(0xFF0D47A1) // Blue
-            "dhl" -> Color(0xFFFFC107) // Yellow
-            "amazon" -> Color(0xFFFF9800) // Orange
+            "fedex" -> Color(0xFF4B0082)
+            "ups" -> Color(0xFF1A237E)
+            "usps" -> Color(0xFF0D47A1)
+            "dhl" -> Color(0xFFFFC107)
+            "amazon" -> Color(0xFFFF9800)
             else -> modernColors.primary
         }
     }

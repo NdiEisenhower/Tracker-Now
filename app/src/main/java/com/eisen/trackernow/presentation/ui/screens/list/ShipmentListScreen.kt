@@ -42,9 +42,7 @@ import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.eisen.trackernow.domain.model.Shipment
-import com.eisen.trackernow.presentation.ui.ThemeManager
 import com.eisen.trackernow.presentation.ui.ThemeMode
-import com.eisen.trackernow.presentation.ui.components.OfflineIndicator
 import com.eisen.trackernow.presentation.util.Helper
 import com.eisen.trackernow.presentation.util.Helper.formatDate
 import com.eisen.trackernow.presentation.util.Helper.getCarrierColor
@@ -74,6 +72,8 @@ fun ShipmentListScreen(
     val hasNewUpdates by viewModel.hasNewUpdates.collectAsState()
     val lastUpdateMessage by viewModel.lastUpdateMessage.collectAsState()
     val recentSearches by viewModel.recentSearches.collectAsStateWithLifecycle()
+    val hasCachedData by viewModel.hasCachedData.collectAsStateWithLifecycle()
+
     val themeManager = LocalThemeManager.current
     val themeMode by themeManager.getThemeMode().collectAsStateWithLifecycle(initialValue = ThemeMode.SYSTEM)
     val userId by viewModel.userId.collectAsStateWithLifecycle()
@@ -85,6 +85,12 @@ fun ShipmentListScreen(
     val modernColors = Helper.getModernColors(isDarkTheme)
     val filteredShipments = remember(searchQuery, selectedFilter, showOnlyFavorites, shipmentsState) {
         viewModel.getFilteredShipments()
+    }
+    var isMinimumLoadingComplete by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        delay(1500)
+        isMinimumLoadingComplete = true
     }
 
     var searchActive by remember { mutableStateOf(false) }
@@ -101,14 +107,12 @@ fun ShipmentListScreen(
     val filterCount = listOfNotNull(
         if (searchQuery.isNotEmpty()) "search" else null,
         selectedFilter?.let { "filter" },
-        if (showOnlyFavorites) "fav" else null  // This is already there
+        if (showOnlyFavorites) "fav" else null
     ).size
 
-    // Pull to Refresh State
     var localIsRefreshing by remember { mutableStateOf(false) }
     val pullToRefreshState = rememberPullToRefreshState()
 
-    // Handle refresh
     LaunchedEffect(localIsRefreshing) {
         if (localIsRefreshing) {
             if (hasNewUpdates) {
@@ -131,18 +135,13 @@ fun ShipmentListScreen(
                     viewModel.updateSearchQuery(query)
                 },
                 onSearchSubmit = { query ->
-                    // Call this when search is submitted (e.g., on keyboard done action)
                     if (query.isNotEmpty()) {
                         viewModel.addRecentSearchIfHasResults(query)
                     }
                 },
                 onSearchActiveChange = { active ->
                     searchActive = active
-                    if (!active) {
-                        showRecentSearches = false
-                    } else {
-                        showRecentSearches = true
-                    }
+
                 },
                 onFilterClick = { showFilterSheet = true },
                 onThemeClick = { showThemeDialog = true },
@@ -167,7 +166,6 @@ fun ShipmentListScreen(
                 onRecentSearchClick = { query ->
                     viewModel.updateSearchQuery(query)
                     searchActive = false
-                    showRecentSearches = false
                 },
                 onClearRecentSearches = { viewModel.clearRecentSearches() }
             )
@@ -202,7 +200,6 @@ fun ShipmentListScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Update notification banner
             AnimatedVisibility(
                 visible = lastUpdateMessage != null,
                 enter = slideInVertically() + fadeIn(),
@@ -237,71 +234,82 @@ fun ShipmentListScreen(
 
             when (val state = shipmentsState) {
                 is Resource.Loading -> {
-                    ModernShimmerLoadingState(modernColors = modernColors)
+                    LottieLoadingState(modernColors = modernColors)
                 }
 
                 is Resource.Success -> {
-                    if (filteredShipments.isEmpty()) {
-                        ModernEmptyState(
-                            hasFilters = filterCount > 0,
-                            modernColors = modernColors,
-                            onClearFilters = { viewModel.clearFilters() }
-                        )
-                    } else {
-                        PullToRefreshBox(
-                            isRefreshing = localIsRefreshing,
-                            onRefresh = {
-                                localIsRefreshing = true
-                            },
-                            modifier = Modifier.fillMaxSize(),
-                            state = pullToRefreshState,
-                            indicator = {
-                                PullToRefreshDefaults.Indicator(
-                                    modifier = Modifier.align(Alignment.TopCenter),
-                                    isRefreshing = localIsRefreshing,
-                                    containerColor = modernColors.surface,
-                                    color = modernColors.primary,
-                                    state = pullToRefreshState
+                    if (isMinimumLoadingComplete) {
+                        if (filteredShipments.isEmpty()) {
+
+                            if (viewModel.shouldShowOfflineNoData()) {
+                                OfflineNoDataState(
+                                    modernColors = modernColors,
+                                    onRetry = { viewModel.refresh() }
+                                )
+                            } else {
+                                ModernEmptyState(
+                                    hasFilters = filterCount > 0,
+                                    modernColors = modernColors,
+                                    onClearFilters = { viewModel.clearFilters() }
                                 )
                             }
-                        ) {
-                            LazyColumn(
-                                state = listState,
-                                contentPadding = PaddingValues(
-                                    start = 16.dp,
-                                    end = 16.dp,
-                                    top = 8.dp,
-                                    bottom = 80.dp
-                                ),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                // Stats header
-                                item {
-                                    StatsHeader(
-                                        totalCount = filteredShipments.size,
-                                        favoriteCount = filteredShipments.count { it.isFavorite },
-                                        showOnlyFavorites = showOnlyFavorites,
-                                        onToggleFavorites = { viewModel.toggleShowOnlyFavorites() },
-                                        modernColors = modernColors
+                        } else {
+                            PullToRefreshBox(
+                                isRefreshing = localIsRefreshing,
+                                onRefresh = {
+                                    localIsRefreshing = true
+                                },
+                                modifier = Modifier.fillMaxSize(),
+                                state = pullToRefreshState,
+                                indicator = {
+                                    PullToRefreshDefaults.Indicator(
+                                        modifier = Modifier.align(Alignment.TopCenter),
+                                        isRefreshing = localIsRefreshing,
+                                        containerColor = modernColors.surface,
+                                        color = modernColors.primary,
+                                        state = pullToRefreshState
                                     )
                                 }
+                            ) {
+                                LazyColumn(
+                                    state = listState,
+                                    contentPadding = PaddingValues(
+                                        start = 16.dp,
+                                        end = 16.dp,
+                                        top = 8.dp,
+                                        bottom = 80.dp
+                                    ),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    item {
+                                        StatsHeader(
+                                            totalCount = filteredShipments.size,
+                                            favoriteCount = filteredShipments.count { it.isFavorite },
+                                            showOnlyFavorites = showOnlyFavorites,
+                                            onToggleFavorites = { viewModel.toggleShowOnlyFavorites() },
+                                            modernColors = modernColors
+                                        )
+                                    }
 
-                                items(
-                                    items = filteredShipments,
-                                    key = { it.id }
-                                ) { shipment ->
-                                    AnimatedShipmentCard(
-                                        shipment = shipment,
-                                        onClick = { onShipmentClick(shipment.id) },
-                                        onFavoriteClick = { viewModel.toggleFavorite(shipment.id) },
-                                        modernColors = modernColors
-                                    )
+                                    items(
+                                        items = filteredShipments,
+                                        key = { it.id }
+                                    ) { shipment ->
+                                        AnimatedShipmentCard(
+                                            shipment = shipment,
+                                            onClick = { onShipmentClick(shipment.id) },
+                                            onFavoriteClick = { viewModel.toggleFavorite(shipment.id) },
+                                            modernColors = modernColors
+                                        )
+                                    }
                                 }
                             }
                         }
+                    }else{
+                        LottieLoadingState(modernColors = modernColors)
                     }
 
-                    if (state.isOffline) {
+                    if (viewModel.isOfflineWithCachedData()) {
                         OfflineIndicator(
                             modifier = Modifier.align(Alignment.BottomCenter),
                             modernColors = modernColors
@@ -310,16 +318,26 @@ fun ShipmentListScreen(
                 }
 
                 is Resource.Error -> {
-                    ModernErrorState(
-                        message = state.message ?: "An error occurred",
-                        modernColors = modernColors,
-                        onRetry = { viewModel.refresh() }
-                    )
+                    if (isMinimumLoadingComplete) {
+                        if (state.isOffline && !viewModel.hasCachedData.value) {
+                            OfflineNoDataState(
+                                modernColors = modernColors,
+                                onRetry = { viewModel.refresh() }
+                            )
+                        } else {
+                            ModernErrorState(
+                                message = state.message ?: "An error occurred",
+                                modernColors = modernColors,
+                                onRetry = { viewModel.refresh() }
+                            )
+                        }
+                    }else{
+                        LottieLoadingState(modernColors = modernColors)
+                    }
                 }
             }
         }
 
-        // Filter Bottom Sheet
         if (showFilterSheet) {
             ModernFilterBottomSheet(
                 onDismiss = { showFilterSheet = false },
@@ -334,7 +352,6 @@ fun ShipmentListScreen(
             )
         }
 
-        // Theme Dialog
         if (showThemeDialog) {
             ThemeSelectorDialog(
                 onDismiss = { showThemeDialog = false },
@@ -346,105 +363,61 @@ fun ShipmentListScreen(
     }
 }
 
-@Composable
-fun ModernShimmerLoadingState(modernColors: Helper.ModernColors) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        repeat(5) {
-            ShimmerCardItem(modernColors = modernColors)
-        }
-    }
-}
 
 @Composable
-fun ShimmerCardItem(modernColors: Helper.ModernColors) {
-    val shimmerColors = listOf(
-        modernColors.surface.copy(alpha = 0.6f),
-        modernColors.surface.copy(alpha = 0.8f),
-        modernColors.surface.copy(alpha = 0.6f)
-    )
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(120.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = modernColors.surface)
+fun OfflineNoDataState(
+    modernColors: Helper.ModernColors,
+    onRetry: () -> Unit
+) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.padding(32.dp)
         ) {
-            // Shimmer for carrier logo
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .shimmerBackground(shimmerColors)
+            Surface(
+                shape = CircleShape,
+                color = modernColors.warning.copy(alpha = 0.1f),
+                modifier = Modifier.size(100.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Default.WifiOff,
+                        contentDescription = null,
+                        tint = modernColors.warning,
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
+            }
+
+            Text(
+                text = "You're Offline",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = modernColors.onSurface
             )
 
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            Text(
+                text = "No internet connection and no cached data available.\nPlease check your connection and try again.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = modernColors.onSurface.copy(alpha = 0.7f),
+                textAlign = TextAlign.Center
+            )
+
+            Button(
+                onClick = onRetry,
+                colors = ButtonDefaults.buttonColors(containerColor = modernColors.primary),
+                shape = RoundedCornerShape(12.dp)
             ) {
-                // Shimmer for carrier name
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(0.6f)
-                        .height(20.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .shimmerBackground(shimmerColors)
-                )
-
-                // Shimmer for tracking number
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(0.8f)
-                        .height(16.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .shimmerBackground(shimmerColors)
-                )
-
-                // Shimmer for status chip
-                Box(
-                    modifier = Modifier
-                        .width(80.dp)
-                        .height(24.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .shimmerBackground(shimmerColors)
-                )
+                Icon(Icons.Default.Refresh, contentDescription = null, tint = modernColors.onSurface)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Try Again", color = modernColors.onSurface)
             }
         }
     }
-}
-
-@Composable
-fun Modifier.shimmerBackground(shimmerColors: List<Color>): Modifier = composed {
-    val transition = rememberInfiniteTransition(label = "shimmer")
-    val shimmerAnimation = transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "shimmer"
-    )
-
-    this.background(
-        brush = Brush.linearGradient(
-            colors = shimmerColors,
-            start = Offset.Zero,
-            end = Offset(x = Float.POSITIVE_INFINITY, y = 0f),
-            tileMode = TileMode.Repeated
-        )
-    )
 }
 
 @Composable
@@ -847,7 +820,6 @@ fun ModernTopBar(
                                 val clip = ClipData.newPlainText("User ID", userId)
                                 clipboard.setPrimaryClip(clip)
 
-                                // Show toast
                                 Toast.makeText(context, "User ID copied to clipboard", Toast.LENGTH_SHORT).show()
 
                                 overflowExpanded = false
@@ -934,7 +906,6 @@ fun ModernTopBar(
                 }
             }
 
-            // Active filters chips
             AnimatedVisibility(
                 visible = hasActiveFilters && !searchActive,
                 enter = expandVertically() + fadeIn(),
@@ -1150,7 +1121,6 @@ fun AnimatedShipmentCard(
                 }
             }
 
-            // Expand/Collapse indicator
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

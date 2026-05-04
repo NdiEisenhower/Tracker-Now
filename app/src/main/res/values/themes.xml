@@ -13,4 +13,20 @@
         <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
         <!-- Customize your theme here. -->
     </style>
+
+
+    <!-- Splash screen theme for Android 12+ -->
+    <style name="Theme.TrackerNow.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/transparent_icon</item>
+        <item name="windowSplashScreenIconBackgroundColor">@android:color/transparent</item>
+        <item name="windowSplashScreenAnimationDuration">1000</item>
+        <item name="postSplashScreenTheme">@style/Theme.TrackerNow</item>
+    </style>
+
+    <!-- Alternative: Simple splash for older Android versions -->
+    <style name="Theme.TrackerNow.SimpleSplash" parent="Theme.TrackerNow">
+        <item name="android:windowBackground">@drawable/transparent_icon</item>
+    </style>
+
 </resources>

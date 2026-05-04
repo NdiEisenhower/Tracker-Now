@@ -2,8 +2,6 @@ package com.eisen.trackernow.data.local.entity
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import com.eisen.trackernow.data.remote.dto.ShipmentDetailResponse
-import com.eisen.trackernow.data.remote.dto.ShipmentDto
 
 @Entity(tableName = "shipments")
 data class ShipmentEntity(

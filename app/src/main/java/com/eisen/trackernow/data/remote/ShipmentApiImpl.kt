@@ -3,7 +3,6 @@ package com.eisen.trackernow.data.remote
 import com.eisen.trackernow.data.remote.dto.ShipmentDetailResponse
 import com.eisen.trackernow.data.remote.dto.ShipmentDto
 import jakarta.inject.Inject
-import jakarta.inject.Singleton
 
 class ShipmentApiImpl @Inject constructor(
     private val retrofit: retrofit2.Retrofit

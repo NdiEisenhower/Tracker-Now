@@ -63,7 +63,6 @@ class NetworkMonitorImpl @Inject constructor(
 
         connectivityManager.registerNetworkCallback(request, callback)
 
-        // Send initial status
         trySend(if (isConnected()) NetworkStatus.Available else NetworkStatus.Unavailable)
 
         awaitClose {

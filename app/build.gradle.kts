@@ -17,8 +17,8 @@ android {
         applicationId = "com.eisen.trackernow"
         minSdk = 24
         targetSdk = 37
-        versionCode = 3
-        versionName = "1.0.0.3"
+        versionCode = 6
+        versionName = "1.0.0.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -48,6 +48,7 @@ android {
     buildFeatures {
         compose = true
     }
+
 }
 
 dependencies {
@@ -67,6 +68,7 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.lottie.compose)
+    implementation(libs.core.splashscreen)
 
     // Firebase
     implementation(platform(libs.firebase.bom))

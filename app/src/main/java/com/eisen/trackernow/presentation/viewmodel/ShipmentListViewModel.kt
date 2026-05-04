@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.eisen.trackernow.data.local.FavoritesManager
 import com.eisen.trackernow.domain.model.Shipment
+import com.eisen.trackernow.domain.repository.NetworkMonitor
+import com.eisen.trackernow.domain.repository.NetworkStatus
 import com.eisen.trackernow.domain.repository.ShipmentRepository
 import com.eisen.trackernow.domain.usecase.FilterShipmentsUseCase
 import com.eisen.trackernow.domain.usecase.GetShipmentsUseCase
@@ -13,7 +15,6 @@ import com.eisen.trackernow.presentation.util.DataStoreManager
 import com.eisen.trackernow.presentation.util.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import jakarta.inject.Inject
-import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,7 +40,8 @@ class ShipmentListViewModel @Inject constructor(
     private val searchShipmentsUseCase: SearchShipmentsUseCase,
     private val filterShipmentsUseCase: FilterShipmentsUseCase,
     private val favoritesManager: FavoritesManager,
-    private val dataStoreManager: DataStoreManager
+    private val dataStoreManager: DataStoreManager,
+    private val networkMonitor: NetworkMonitor
 ) : ViewModel() {
 
     private val _userId = MutableStateFlow("")
@@ -48,7 +50,6 @@ class ShipmentListViewModel @Inject constructor(
     private val _shipments = MutableStateFlow<Resource<List<Shipment>>>(Resource.Loading)
     val shipments: StateFlow<Resource<List<Shipment>>> = _shipments.asStateFlow()
 
-    // Store the original unfiltered shipments
     private val _originalShipments = MutableStateFlow<List<Shipment>>(emptyList())
 
     private val _searchQuery = MutableStateFlow("")
@@ -78,6 +79,13 @@ class ShipmentListViewModel @Inject constructor(
     private val _showOnlyFavorites = MutableStateFlow(false)
     val showOnlyFavorites = _showOnlyFavorites.asStateFlow()
 
+
+    private val _isNetworkAvailable = MutableStateFlow(true)
+    val isNetworkAvailable: StateFlow<Boolean> = _isNetworkAvailable.asStateFlow()
+
+    private val _hasCachedData = MutableStateFlow(false)
+    val hasCachedData: StateFlow<Boolean> = _hasCachedData.asStateFlow()
+
     private var searchJob: Job? = null
     private var pushUpdateJob: Job? = null
 
@@ -89,8 +97,22 @@ class ShipmentListViewModel @Inject constructor(
         setupSearchAndFilter()
         startListeningForPushUpdates()
         checkForPendingUpdates()
+        monitorNetworkStatus()
     }
 
+    private fun monitorNetworkStatus() {
+        viewModelScope.launch {
+            networkMonitor.observeNetworkStatus().collect { status ->
+                val wasAvailable = _isNetworkAvailable.value
+                val isAvailable = status == NetworkStatus.Available || status == NetworkStatus.Metered || status == NetworkStatus.Unmetered
+                _isNetworkAvailable.value = isAvailable
+
+                if (!wasAvailable && isAvailable && _hasCachedData.value) {
+                    refresh()
+                }
+            }
+        }
+    }
 
 
     private fun loadUserId() {
@@ -105,23 +127,19 @@ class ShipmentListViewModel @Inject constructor(
 
     private fun loadUserPreferences() {
         viewModelScope.launch {
-            // Load recent searches
             dataStoreManager.getRecentSearches().collect { searches ->
                 _recentSearches.value = searches
             }
         }
 
         viewModelScope.launch {
-            // Load show only favorites preference
             dataStoreManager.getShowOnlyFavorites().collect { showFavorites ->
                 _showOnlyFavorites.value = showFavorites
             }
         }
 
         viewModelScope.launch {
-            // Load last refresh time
             dataStoreManager.getLastRefreshTime().collect { lastRefresh ->
-                // Use this to determine if there are updates
                 val lastUpdate = repository.getLastUpdateTimestamp()
                 _hasNewUpdates.value = lastUpdate > lastRefresh
             }
@@ -132,11 +150,9 @@ class ShipmentListViewModel @Inject constructor(
         viewModelScope.launch {
             favoritesManager.getFavoriteIds().collect { ids ->
                 _favoriteIds.value = ids
-                // Update favorites in original shipments
                 _originalShipments.value = _originalShipments.value.map { shipment ->
                     shipment.copy(isFavorite = ids.contains(shipment.id))
                 }
-                // Reapply current filters
                 applyFilters()
             }
         }
@@ -145,13 +161,37 @@ class ShipmentListViewModel @Inject constructor(
     private fun loadShipments() {
         viewModelScope.launch {
             getShipmentsUseCase().collect { resource ->
-                _shipments.value = resource
                 if (resource is Resource.Success) {
-                    _originalShipments.value = resource.data ?: emptyList()
+                    val data = resource.data ?: emptyList()
+                    _hasCachedData.value = data.isNotEmpty()
+                    _originalShipments.value = data
                     applyFilters()
+                } else if (resource is Resource.Error) {
+                    if (!_hasCachedData.value && !_isNetworkAvailable.value) {
+                        _shipments.value = Resource.Error(
+                            "No internet connection and no cached data available",
+                            offline = true
+                        )
+                        return@collect
+                    }
                 }
+
+                _shipments.value = resource
             }
         }
+    }
+
+    fun shouldShowOfflineNoData(): Boolean {
+        val isOffline = !_isNetworkAvailable.value
+        val hasData = _hasCachedData.value
+        val isLoading = _shipments.value is Resource.Loading
+        val isError = _shipments.value is Resource.Error && (_shipments.value as Resource.Error).isOffline
+
+        return (isOffline && !hasData && !isLoading) || (isError && !hasData)
+    }
+
+    fun isOfflineWithCachedData(): Boolean {
+        return !_isNetworkAvailable.value && _hasCachedData.value
     }
 
     private fun setupSearchAndFilter() {
@@ -173,33 +213,25 @@ class ShipmentListViewModel @Inject constructor(
         viewModelScope.launch {
             var filtered = _originalShipments.value.toList()
 
-            // Apply default "Not Delivered" filter if no user filter is selected
             val effectiveFilter = _selectedFilter.value ?: run {
-                // Default filter: show only NOT_DELIVERED_STATUSES
                 if (_searchQuery.value.isEmpty() && !_showOnlyFavorites.value) {
                     filtered = filtered.filter { NOT_DELIVERED_STATUSES.contains(it.lastStatus.code) }
                 }
                 null
             }
 
-            // Apply search filter
             if (_searchQuery.value.isNotEmpty()) {
                 filtered = searchShipmentsUseCase(filtered, _searchQuery.value)
             }
 
-            // Apply status filter if a specific filter is selected
             effectiveFilter?.let { filter ->
                 if (filter.code != "ALL") {
                     filtered = filterShipmentsUseCase(filtered, filter.code)
                 }
             }
-
-            // Apply favorites filter
             if (_showOnlyFavorites.value) {
                 filtered = filtered.filter { _favoriteIds.value.contains(it.id) }
             }
-
-            // Update the displayed shipments
             _shipments.value = Resource.Success(filtered, (_shipments.value as? Resource.Success)?.isOffline ?: false)
         }
     }
@@ -236,10 +268,12 @@ class ShipmentListViewModel @Inject constructor(
             _isRefreshing.value = true
             val result = refreshShipmentsUseCase()
             if (result.isSuccess) {
-                // Save the refresh time
                 dataStoreManager.saveLastRefreshTime(System.currentTimeMillis())
                 loadShipments()
                 checkForPendingUpdates()
+            } else {
+                val currentData = (_shipments.value as? Resource.Success)?.data
+                _hasCachedData.value = !currentData.isNullOrEmpty()
             }
             delay(500)
             _isRefreshing.value = false
@@ -260,7 +294,6 @@ class ShipmentListViewModel @Inject constructor(
         if (query.isBlank()) return
 
         viewModelScope.launch {
-            // Check if search query has results in the current shipments
             val hasResults = when (val state = _shipments.value) {
                 is Resource.Success -> {
                     val shipments = state.data ?: emptyList()
@@ -272,7 +305,6 @@ class ShipmentListViewModel @Inject constructor(
                 else -> false
             }
 
-            // Only add to recent searches if there are results
             if (hasResults) {
                 val current = _recentSearches.value.toMutableList()
                 current.remove(query)
@@ -339,7 +371,7 @@ class ShipmentListViewModel @Inject constructor(
         LABEL_CREATED("LABEL_CREATED", "Label Created"),
         DELIVERED("DELIVERED", "Delivered"),
         EXCEPTION("EXCEPTION", "Exception")
-        // ALL removed - never show "All" in filter
+
     }
 
     override fun onCleared() {

@@ -37,7 +37,6 @@ class ShipmentRepositoryImpl @Inject constructor(
         return flow {
             emit(Resource.Loading)
 
-            // First, emit cached data if available
             var hasCachedData = false
             var cachedShipments = emptyList<Shipment>()
 
@@ -54,23 +53,19 @@ class ShipmentRepositoryImpl @Inject constructor(
                 e.printStackTrace()
             }
 
-            // Then try to fetch fresh data from Firebase REST API
             if (networkMonitor.isConnected()) {
                 try {
                     val shipmentsMap = withContext(ioDispatcher) {
                         api.getShipments()
                     }
 
-                    // Convert Map to List and add IDs
                     val shipments = shipmentsMap.map { (id, shipmentDto) ->
                         shipmentDto.copy(id = id).toEntity()
                     }.toList()
 
                     withContext(ioDispatcher) {
-                        // 1. Save basic shipment info
                         shipmentDao.insertAll(shipments)
 
-                        // 2. Fetch and cache details for each shipment (optional, for offline view)
                         shipments.forEach { shipment ->
                             try {
                                 val detailResponse = api.getShipmentDetail(shipment.id)
@@ -81,7 +76,6 @@ class ShipmentRepositoryImpl @Inject constructor(
                                     statusDao.insertAll(statuses)
                                 }
                             } catch (e: Exception) {
-                                // Don't fail the whole operation if one detail fails
                                 e.printStackTrace()
                             }
                         }
@@ -110,7 +104,7 @@ class ShipmentRepositoryImpl @Inject constructor(
     override suspend fun refreshShipments(): Result<Unit> = withContext(ioDispatcher) {
         return@withContext try {
             if (networkMonitor.isConnected()) {
-                val shipmentsMap = api.getShipments() // Fixed: was getAllShipments()
+                val shipmentsMap = api.getShipments()
                 val shipments = shipmentsMap.map { (id, shipmentDto) ->
                     shipmentDto.copy(id = id).toEntity()
                 }.toList()
@@ -119,7 +113,7 @@ class ShipmentRepositoryImpl @Inject constructor(
 
                 shipments.forEach { shipment ->
                     try {
-                        val detailResponse = api.getShipmentDetail(shipment.id) // Fixed: was firebaseApi
+                        val detailResponse = api.getShipmentDetail(shipment.id)
                         val statuses = detailResponse.statuses.map { status ->
                             status.toEntity(shipment.id)
                         }
@@ -143,7 +137,6 @@ class ShipmentRepositoryImpl @Inject constructor(
 
     override suspend fun getShipmentDetail(id: String): ShipmentDetail? = withContext(ioDispatcher) {
         try {
-            // Try to get from cache first
             val shipmentEntity = shipmentDao.getShipmentById(id)
             val statusEntities = statusDao.getStatusesForShipmentSync(id)
 
@@ -159,12 +152,10 @@ class ShipmentRepositoryImpl @Inject constructor(
                 )
             }
 
-            // If not in cache, fetch from network
             if (networkMonitor.isConnected()) {
                 try {
-                    val response = api.getShipmentDetail(id) // Fixed: was firebaseApi
+                    val response = api.getShipmentDetail(id)
 
-                    // Convert to entity with the provided ID
                     val shipmentEntityFromResponse = response.toEntity(id)
                     shipmentDao.insert(shipmentEntityFromResponse)
 
@@ -242,7 +233,6 @@ class ShipmentRepositoryImpl @Inject constructor(
         emit(favorites.map { it.toDomain() })
     }.flowOn(ioDispatcher)
 
-    // Push notification methods
     override fun getUserId(): String = runBlocking { pushUpdateRepository.getUserId() }
     override fun listenForUpdates(): Flow<PushUpdate> = pushUpdateRepository.listenForUpdates(getUserId())
     override fun saveRefreshTime() = pushUpdateRepository.saveRefreshTime()

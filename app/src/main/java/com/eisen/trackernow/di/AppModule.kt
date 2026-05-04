@@ -6,7 +6,6 @@ import com.eisen.trackernow.data.local.dao.ShipmentDao
 import com.eisen.trackernow.data.local.dao.StatusDao
 import com.eisen.trackernow.data.remote.PushUpdateRepository
 import com.eisen.trackernow.data.remote.ShipmentApi
-import com.eisen.trackernow.data.remote.ShipmentApiImpl
 import com.eisen.trackernow.data.repository.ShipmentRepositoryImpl
 import com.eisen.trackernow.domain.repository.NetworkMonitor
 import com.eisen.trackernow.domain.repository.NetworkMonitorImpl
@@ -23,7 +22,6 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import jakarta.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Dispatchers
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -47,12 +45,6 @@ object AppModule {
         return database.statusDao()
     }
 
-
-   /* @Provides
-    @Singleton
-    fun provideShipmentApi(impl: ShipmentApiImpl): ShipmentApi {
-        return impl
-    }*/
     @Provides
     @Singleton
     fun provideNetworkMonitor(@ApplicationContext context: Context): NetworkMonitor {

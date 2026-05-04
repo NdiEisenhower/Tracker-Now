@@ -7,14 +7,12 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface ShipmentDao {
 
-    // Flow versions for reactive queries
     @Query("SELECT * FROM shipments ORDER BY lastUpdatedAt DESC")
     fun getAllShipments(): Flow<List<ShipmentEntity>>
 
     @Query("SELECT * FROM shipments WHERE isFavorite = 1 ORDER BY lastUpdatedAt DESC")
     fun getFavoriteShipments(): Flow<List<ShipmentEntity>>
 
-    // Suspend versions for one-time queries
     @Query("SELECT * FROM shipments ORDER BY lastUpdatedAt DESC")
     suspend fun getAllShipmentsList(): List<ShipmentEntity>
 
@@ -33,7 +31,6 @@ interface ShipmentDao {
     @Query("SELECT * FROM shipments ORDER BY lastUpdatedAt DESC")
     suspend fun getCachedShipments(): List<ShipmentEntity>
 
-    // Insert/Update/Delete operations
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(shipment: ShipmentEntity)
 

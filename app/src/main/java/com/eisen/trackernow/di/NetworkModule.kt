@@ -1,7 +1,5 @@
 package com.eisen.trackernow.di
 
-import android.app.Application
-import com.eisen.trackernow.data.remote.PushUpdateRepository
 import com.eisen.trackernow.data.remote.ShipmentApi
 import com.google.firebase.database.FirebaseDatabase
 import com.squareup.moshi.Moshi

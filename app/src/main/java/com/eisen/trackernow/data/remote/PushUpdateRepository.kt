@@ -3,8 +3,6 @@ package com.eisen.trackernow.data.remote
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
 import com.eisen.trackernow.data.PushUpdate
 import com.eisen.trackernow.data.UpdateChanges
 import com.eisen.trackernow.data.remote.dto.UpdateDataDto
@@ -25,6 +23,7 @@ import kotlinx.coroutines.flow.callbackFlow
 import org.json.JSONObject
 import kotlin.getValue
 import kotlin.jvm.java
+import androidx.core.content.edit
 
 @Singleton
 class PushUpdateRepository @Inject constructor(
@@ -71,13 +70,11 @@ class PushUpdateRepository @Inject constructor(
 
                         Log.d(TAG, "Raw JSON: $jsonString")
 
-                        // Parse with Moshi
                         val updateData = updateDataAdapter.fromJson(jsonString)
 
                         if (updateData != null && updateData.shipmentId.isNotEmpty()) {
                             Log.d(TAG, "Successfully parsed update for: ${updateData.shipmentId}")
 
-                            // Convert to PushUpdate
                             val pushUpdate = PushUpdate(
                                 type = updateData.type,
                                 shipmentId = updateData.shipmentId,
@@ -90,10 +87,8 @@ class PushUpdateRepository @Inject constructor(
                                 )
                             )
 
-                            // Send the update through flow
                             trySend(pushUpdate)
 
-                            // Remove after processing
                             childSnapshot.ref.removeValue()
                                 .addOnSuccessListener {
                                     Log.d(TAG, "Update removed successfully")
@@ -136,7 +131,7 @@ class PushUpdateRepository @Inject constructor(
                         else -> rawValue.toString()
                     }
 
-                    Log.d(PushUpdateRepository.Companion.TAG, "Child added JSON: $jsonString")
+                    Log.d(TAG, "Child added JSON: $jsonString")
 
                     val updateData = updateDataAdapter.fromJson(jsonString)
 
@@ -155,33 +150,26 @@ class PushUpdateRepository @Inject constructor(
 
                         trySend(pushUpdate)
 
-                        // Remove after processing
                         snapshot.ref.removeValue()
                             .addOnSuccessListener {
-                                Log.d(PushUpdateRepository.Companion.TAG, "Update removed successfully")
+                                Log.d(TAG, "Update removed successfully")
                             }
                     } else {
-                        Log.w(PushUpdateRepository.Companion.TAG, "Failed to parse child update")
+                        Log.w(TAG, "Failed to parse child update")
                     }
                 } catch (e: Exception) {
-                    Log.e(PushUpdateRepository.Companion.TAG, "Error processing child update: ${e.message}", e)
+                    Log.e(TAG, "Error processing child update: ${e.message}", e)
                 }
             }
 
-            override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {
-                // Not needed
-            }
+            override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {}
 
-            override fun onChildRemoved(snapshot: DataSnapshot) {
-                // Not needed
-            }
+            override fun onChildRemoved(snapshot: DataSnapshot) {}
 
-            override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {
-                // Not needed
-            }
+            override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {}
 
             override fun onCancelled(error: DatabaseError) {
-                Log.e(PushUpdateRepository.Companion.TAG, "Database error: ${error.message}")
+                Log.e(TAG, "Database error: ${error.message}")
                 close(error.toException())
             }
         }
@@ -193,7 +181,7 @@ class PushUpdateRepository @Inject constructor(
         }
     }
     fun saveRefreshTime() {
-        prefs.edit().putLong("last_refresh_time", System.currentTimeMillis()).apply()
+        prefs.edit { putLong("last_refresh_time", System.currentTimeMillis()) }
     }
 
     fun getLastRefreshTime(): Long = prefs.getLong("last_refresh_time", 0)
@@ -201,7 +189,7 @@ class PushUpdateRepository @Inject constructor(
     fun getLastUpdateTimestamp(): Long = prefs.getLong("last_update_timestamp", 0)
 
     fun saveLastUpdateTimestamp(timestamp: Long) {
-        prefs.edit().putLong("last_update_timestamp", timestamp).apply()
+        prefs.edit { putLong("last_update_timestamp", timestamp) }
     }
 
 }

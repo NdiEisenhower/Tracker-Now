@@ -1,12 +1,10 @@
 package com.eisen.trackernow.presentation.ui.screens.detail
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,9 +18,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -34,36 +29,26 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.eisen.trackernow.domain.model.ShipmentDetail
-import com.eisen.trackernow.domain.model.StatusTimeline
 import com.eisen.trackernow.presentation.ui.LocalThemeManager
 import com.eisen.trackernow.presentation.ui.ThemeMode
-import com.eisen.trackernow.presentation.ui.components.ErrorState
-import com.eisen.trackernow.presentation.ui.components.LoadingState
 import com.eisen.trackernow.presentation.util.Helper
 import com.eisen.trackernow.presentation.util.Helper.ModernColors
 import com.eisen.trackernow.presentation.util.Resource
 import com.eisen.trackernow.presentation.viewmodel.ShipmentDetailViewModel
-import com.eisen.trackernow.presentation.util.Helper.getStatusColor
-import java.text.SimpleDateFormat
-import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ShipmentDetailScreen(
-    shipmentId: String,
     onBackClick: () -> Unit,
     viewModel: ShipmentDetailViewModel = hiltViewModel()
 ) {
@@ -105,11 +90,7 @@ fun ShipmentDetailScreen(
                         )
                     }
                 },
-                actions = {
-                    // IconButton(onClick = { /* Share functionality */ }) {
-                    //     Icon(Icons.Default.Share, contentDescription = "Share", tint = modernColors.onSurface)
-                    // }
-                },
+                actions = {},
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = modernColors.surface
                 )
@@ -154,17 +135,22 @@ fun ShipmentDetailContent(
     modernColors: ModernColors,
     lazyListState: androidx.compose.foundation.lazy.LazyListState
 ) {
+    val configuration = LocalConfiguration.current
+    val isTablet = configuration.screenWidthDp >= 600
     val uniqueTimeline = remember(detail.timeline) {
         detail.timeline
             .distinctBy { "${it.time}_${it.location}_${it.label}" }
-            .sortedByDescending { it.time } // Sort by most recent first
+            .sortedByDescending { it.time }
     }
 
     LazyColumn(
         state = lazyListState,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        contentPadding = PaddingValues(
+            horizontal = if (isTablet) 32.dp else 16.dp,
+            vertical = 16.dp
+        ),
+        verticalArrangement = Arrangement.spacedBy(if (isTablet) 24.dp else 16.dp)
     ) {
         item(key = "info_card") {
             ShipmentInfoCard(detail = detail, modernColors = modernColors)
@@ -176,7 +162,10 @@ fun ShipmentDetailContent(
             ) {
                 Text(
                     text = "Tracking Timeline",
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = if (isTablet)
+                        MaterialTheme.typography.headlineMedium
+                    else
+                        MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = modernColors.onSurface
                 )
@@ -185,7 +174,10 @@ fun ShipmentDetailContent(
 
                 Text(
                     text = "${uniqueTimeline.size} status updates",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = if (isTablet)
+                        MaterialTheme.typography.bodyMedium
+                    else
+                        MaterialTheme.typography.bodySmall,
                     color = modernColors.onSurface.copy(alpha = 0.7f)
                 )
             }
@@ -204,7 +196,6 @@ fun ShipmentDetailContent(
     }
 }
 
-// Update LoadingState composable
 @Composable
 fun LoadingState(modernColors: ModernColors) {
     Box(
@@ -229,7 +220,6 @@ fun LoadingState(modernColors: ModernColors) {
     }
 }
 
-// Update ErrorState composable
 @Composable
 fun ErrorState(
     message: String,
