@@ -35,5 +35,5 @@ A modern Android app for tracking shipments across multiple carriers with offlin
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/yourusername/trackernow.git
+git clone https://github.com/NdiEisenhower/Tracker-Now.git
 cd trackernow
